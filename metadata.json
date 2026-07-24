@@ -1,0 +1,6 @@
+{
+  "name": "Studio Camila Lima - Agendamento",
+  "description": "Sistema de autoagendamento elegante para Studio Camila Lima - Nail Designer especializada em unhas em gel.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

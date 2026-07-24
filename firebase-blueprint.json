@@ -1,0 +1,83 @@
+{
+  "entities": {
+    "profile": {
+      "title": "Studio Profile",
+      "description": "Informações do Studio Camila Lima",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "ownerName": { "type": "string" },
+        "profession": { "type": "string" },
+        "bio": { "type": "string" },
+        "whatsapp": { "type": "string" },
+        "instagram": { "type": "string" },
+        "address": { "type": "string" },
+        "mapLink": { "type": "string" },
+        "pixKey": { "type": "string" },
+        "pendingExpirationMinutes": { "type": "number" }
+      }
+    },
+    "service": {
+      "title": "Service",
+      "description": "Serviços do Studio",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "category": { "type": "string" },
+        "description": { "type": "string" },
+        "type": { "type": "string" },
+        "price": { "type": "number" },
+        "durationMinutes": { "type": "number" },
+        "durability": { "type": "string" },
+        "position": { "type": "number" },
+        "active": { "type": "boolean" }
+      },
+      "required": ["title", "price", "durationMinutes"]
+    },
+    "appointment": {
+      "title": "Appointment",
+      "description": "Agendamentos realizados pelas clientes ou pelo admin",
+      "type": "object",
+      "properties": {
+        "clientName": { "type": "string" },
+        "clientWhatsapp": { "type": "string" },
+        "serviceId": { "type": "string" },
+        "serviceTitle": { "type": "string" },
+        "price": { "type": "number" },
+        "date": { "type": "string" },
+        "time": { "type": "string" },
+        "endTime": { "type": "string" },
+        "durationMinutes": { "type": "number" },
+        "status": { "type": "string" },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "expiresAt": { "type": "string" }
+      },
+      "required": ["clientName", "clientWhatsapp", "serviceTitle", "date", "time", "status"]
+    },
+    "blockedSlot": {
+      "title": "Blocked Slot",
+      "description": "Bloqueios de horário ou dias inteiros",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string" },
+        "fullDay": { "type": "boolean" },
+        "startTime": { "type": "string" },
+        "endTime": { "type": "string" },
+        "reason": { "type": "string" }
+      },
+      "required": ["date", "fullDay"]
+    },
+    "galleryItem": {
+      "title": "Gallery Item",
+      "description": "Fotos da galeria de trabalhos em gel",
+      "type": "object",
+      "properties": {
+        "imageUrl": { "type": "string" },
+        "title": { "type": "string" },
+        "category": { "type": "string" }
+      },
+      "required": ["imageUrl"]
+    }
+  }
+}
