@@ -86,6 +86,7 @@ export interface StudioProfile {
   pixKeyType: string;
   pendingExpirationMinutes: number; // ex: 15 min
   logoUrl?: string;
+  notificationEmail?: string;
 }
 
 export interface StudioPolicies {

@@ -24,6 +24,7 @@ import {
   updateAppointmentStatus,
   normalizePhone,
 } from '../../services/db';
+import { emailService } from '../../services/email';
 
 interface BookingModalProps {
   isOpen: boolean;
@@ -208,26 +209,44 @@ export const BookingModal: React.FC<BookingModalProps> = ({
     setSubmitting(true);
     setErrorMessage('');
 
-    const res = await createAppointmentTransaction({
+    const appointmentPayload: any = {
       clientName,
       clientWhatsapp: `55${clientWhatsapp}`,
       serviceId: selectedService.id,
       serviceTitle: selectedService.title,
       price: totalPrice,
       basePrice: basePrice,
-      replacement: isMaintenanceService ? replacementOption : undefined,
-      replacementPrice: isMaintenanceService ? replacementPrice : undefined,
       totalPrice: totalPrice,
       date: selectedDate,
       time: selectedSlot.time,
       endTime: selectedSlot.endTime,
       durationMinutes: selectedService.durationMinutes,
-      notes,
-    });
+      notes: notes || '',
+    };
+
+    if (isMaintenanceService && replacementOption !== 'Nenhuma') {
+      appointmentPayload.replacement = replacementOption;
+      appointmentPayload.replacementPrice = replacementPrice;
+    }
+
+    const res = await createAppointmentTransaction(appointmentPayload);
 
     setSubmitting(false);
 
     if (res.success) {
+      // Trigger background email notification via EmailService (Resend or EmailJS based on admin settings)
+      if (res.id) {
+        emailService.send({
+          appointmentId: res.id,
+          clientName: appointmentPayload.clientName,
+          serviceTitle: appointmentPayload.serviceTitle,
+          date: appointmentPayload.date,
+          time: appointmentPayload.time,
+          clientWhatsapp: appointmentPayload.clientWhatsapp,
+          notificationEmail: profile?.notificationEmail,
+        }).catch((err) => console.warn('Email notification notice:', err));
+      }
+
       // If this was a rescheduling of an existing appointment, mark old as 'rescheduled'
       if (existingAppointment) {
         try {

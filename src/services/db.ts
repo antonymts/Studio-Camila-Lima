@@ -35,6 +35,16 @@ import {
 
 export const STUDIO_ID = 'camilalima';
 
+export function stripUndefined<T extends Record<string, any>>(obj: T): T {
+  const clean: Record<string, any> = {};
+  for (const key of Object.keys(obj)) {
+    if (obj[key] !== undefined) {
+      clean[key] = obj[key];
+    }
+  }
+  return clean as T;
+}
+
 // Root references
 const studioRef = doc(db, 'studios', STUDIO_ID);
 const profileRef = doc(db, 'studios', STUDIO_ID, 'info', 'profile');
@@ -61,6 +71,7 @@ export const defaultProfile: StudioProfile = {
   pixKey: '82996844810',
   pixKeyType: 'Telefone (Chave Pix)',
   pendingExpirationMinutes: 15,
+  notificationEmail: 'camilalima@studio.com',
 };
 
 // Initial Default Business Hours
@@ -299,13 +310,13 @@ export async function getServices(includeInactive = false): Promise<Service[]> {
 }
 
 export async function addService(service: Omit<Service, 'id'>): Promise<string> {
-  const docRef = await addDoc(servicesCollection, service);
+  const docRef = await addDoc(servicesCollection, stripUndefined(service));
   return docRef.id;
 }
 
 export async function updateService(id: string, service: Partial<Service>): Promise<void> {
   const ref = doc(db, 'studios', STUDIO_ID, 'services', id);
-  await updateDoc(ref, service);
+  await updateDoc(ref, stripUndefined(service));
 }
 
 // Clean, isolated deletion function for Services
@@ -348,7 +359,7 @@ export async function getGalleryItems(): Promise<GalleryItem[]> {
 }
 
 export async function addGalleryItem(item: Omit<GalleryItem, 'id'>): Promise<string> {
-  const ref = await addDoc(galleryCollection, item);
+  const ref = await addDoc(galleryCollection, stripUndefined(item));
   return ref.id;
 }
 
@@ -415,7 +426,7 @@ export async function uploadGalleryPhoto(
     storagePath: storagePath,
   };
 
-  const docRef = await addDoc(galleryCollection, galleryData);
+  const docRef = await addDoc(galleryCollection, stripUndefined(galleryData));
 
   return {
     id: docRef.id,
@@ -480,7 +491,7 @@ export async function getBlockedSlots(): Promise<BlockedSlot[]> {
 }
 
 export async function addBlockedSlot(slot: Omit<BlockedSlot, 'id'>): Promise<string> {
-  const ref = await addDoc(blockedSlotsCollection, slot);
+  const ref = await addDoc(blockedSlotsCollection, stripUndefined(slot));
   return ref.id;
 }
 
@@ -654,7 +665,7 @@ export async function createAppointmentTransaction(
       expiresAt,
     };
 
-    const docRef = await addDoc(appointmentsCollection, fullAppointment);
+    const docRef = await addDoc(appointmentsCollection, stripUndefined(fullAppointment));
     return { success: true, id: docRef.id };
   } catch (err: any) {
     return { success: false, error: err.message || 'Erro ao agendar horário.' };

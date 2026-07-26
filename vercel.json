@@ -1,0 +1,12 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/notify-new-appointment",
+      "destination": "/api/notify-new-appointment"
+    },
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
+    }
+  ]
+}

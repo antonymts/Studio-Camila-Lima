@@ -19,12 +19,16 @@ import {
   AlertCircle,
   CalendarCheck,
   ChevronLeft,
+  ChevronRight,
   X,
   Lock,
   Upload,
   Loader2,
+  Download,
+  Mail,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
+import { getGoogleCalendarUrl, downloadICSFile } from '../../utils/calendar';
 import {
   Appointment,
   Service,
@@ -59,6 +63,7 @@ import {
 } from '../../services/db';
 
 import { formatDateBR } from '../../utils/timeSlots';
+import { emailService, EmailProviderType } from '../../services/email';
 
 interface AdminPanelProps {
   onClose: () => void;
@@ -76,6 +81,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose, onRefreshPublic
   const [profile, setProfile] = useState<StudioProfile | null>(null);
   const [policies, setPolicies] = useState<StudioPolicies | null>(null);
   const [gallery, setGallery] = useState<GalleryItem[]>([]);
+  const [emailProvider, setEmailProvider] = useState<EmailProviderType>('resend');
 
   const [loading, setLoading] = useState<boolean>(true);
   const [filterDate, setFilterDate] = useState<string>('');
@@ -118,6 +124,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose, onRefreshPublic
   });
   const [isExecutingDelete, setIsExecutingDelete] = useState<boolean>(false);
 
+  // Calendar Modal State
+  const [calendarModalApp, setCalendarModalApp] = useState<Appointment | null>(null);
+  const [addedToCalendarIds, setAddedToCalendarIds] = useState<Set<string>>(new Set());
+
   useEffect(() => {
     loadAllAdminData();
   }, []);
@@ -125,7 +135,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose, onRefreshPublic
   const loadAllAdminData = async () => {
     setLoading(true);
     try {
-      const [appsData, servsData, hoursData, blocksData, profData, polData, galData] = await Promise.all([
+      const [appsData, servsData, hoursData, blocksData, profData, polData, galData, emailSettings] = await Promise.all([
         getAllAppointments(),
         getServices(),
         getBusinessHours(),
@@ -133,6 +143,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose, onRefreshPublic
         getStudioProfile(),
         getStudioPolicies(),
         getGalleryItems(),
+        emailService.getEmailSettings(),
       ]);
 
       setAppointments(appsData);
@@ -142,6 +153,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose, onRefreshPublic
       setProfile(profData);
       setPolicies(polData);
       setGallery(galData);
+      setEmailProvider(emailSettings.provider || 'resend');
     } catch (err) {
       console.error('Error loading admin data:', err);
     } finally {
@@ -369,13 +381,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose, onRefreshPublic
   const handleAddBlock = async () => {
     if (!blockDate) return;
     try {
-      await addBlockedSlot({
+      const blockPayload: any = {
         date: blockDate,
         fullDay: blockFullDay,
-        startTime: blockFullDay ? undefined : blockStart,
-        endTime: blockFullDay ? undefined : blockEnd,
-        reason: blockReason,
-      });
+        reason: blockReason || '',
+      };
+      if (!blockFullDay) {
+        blockPayload.startTime = blockStart;
+        blockPayload.endTime = blockEnd;
+      }
+      await addBlockedSlot(blockPayload);
 
       setIsBlockModalOpen(false);
       loadAllAdminData();
@@ -406,12 +421,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose, onRefreshPublic
     }
   };
 
-  // Save Profile & Policies
+  // Save Profile, Policies & Email Settings
   const handleSaveProfile = async () => {
     try {
       if (profile) await updateStudioProfile(profile);
       if (policies) await updateStudioPolicies(policies);
-      alert('Informações do perfil e políticas salvas!');
+      await emailService.updateEmailSettings({ provider: emailProvider });
+      alert('Informações do perfil, políticas e configurações de e-mail salvas!');
       onRefreshPublicData();
     } catch (err: any) {
       console.error('Erro ao salvar perfil/políticas:', err);
@@ -492,9 +508,27 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose, onRefreshPublic
   };
 
 
+  // Helper functions for WhatsApp message templates
+  const getConfirmedWhatsappMessage = (app: Appointment) => {
+    return `Olá, ${app.clientName}! 💕\nAqui é do Studio Camila Lima! Passando para informar que seu agendamento foi confirmado com sucesso. ✨\n\n💅 Serviço: ${app.serviceTitle}\n📅 Data: ${formatDateBR(app.date)}\n⏰ Horário: ${app.time}\n\nEstamos te esperando! 🥰\nCaso precise cancelar ou reagendar, entre em contato conosco com antecedência.\n\nAté lá! 💖`;
+  };
+
+  const getDeniedWhatsappMessage = (app: Appointment) => {
+    return `Olá, ${app.clientName}! 💕\nAqui é do Studio Camila Lima! Entramos em contato para informar que, infelizmente, não foi possível confirmar o seu agendamento. 😔\n\n💅 Serviço solicitado: ${app.serviceTitle}\n📅 Data: ${formatDateBR(app.date)}\n⏰ Horário solicitado: ${app.time}\n\nPedimos desculpas pelo inconveniente! Você pode acessar nosso site novamente para escolher outro horário disponível ou, se preferir, falar conosco por aqui. 💖`;
+  };
+
   // Open WhatsApp Client link
   const openClientWhatsapp = (app: Appointment, customText?: string) => {
-    const text = customText || `Olá, ${app.clientName}! Falo do Studio Camila Lima em relação ao seu agendamento de ${app.serviceTitle} no dia ${formatDateBR(app.date)} às ${app.time}.`;
+    let text = customText;
+    if (!text) {
+      if (app.status === 'confirmed') {
+        text = getConfirmedWhatsappMessage(app);
+      } else if (app.status === 'denied' || app.status === 'cancelled') {
+        text = getDeniedWhatsappMessage(app);
+      } else {
+        text = `Olá, ${app.clientName}! Falo do Studio Camila Lima em relação ao seu agendamento de ${app.serviceTitle} no dia ${formatDateBR(app.date)} às ${app.time}.`;
+      }
+    }
     window.open(`https://wa.me/${app.clientWhatsapp}?text=${encodeURIComponent(text)}`, '_blank');
   };
 
@@ -800,6 +834,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose, onRefreshPublic
                             </div>
 
                             <div className="flex items-center gap-2">
+                              {app.status === 'confirmed' && (
+                                <button
+                                  type="button"
+                                  onClick={() => setCalendarModalApp(app)}
+                                  className="px-2.5 py-1.5 rounded-xl bg-rose-100 hover:bg-rose-200 text-rose-900 font-semibold text-xs flex items-center gap-1 transition-colors"
+                                  title="Adicionar agendamento ao calendário"
+                                >
+                                  <CalendarCheck className="w-3.5 h-3.5 text-rose-800" />
+                                  <span>{addedToCalendarIds.has(app.id) ? 'No calendário' : 'Adicionar ao calendário'}</span>
+                                </button>
+                              )}
                               <button
                                 onClick={() => openClientWhatsapp(app)}
                                 className="p-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700"
@@ -948,6 +993,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose, onRefreshPublic
                           </div>
 
                           <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+                            {app.status === 'confirmed' && (
+                              <button
+                                type="button"
+                                onClick={() => setCalendarModalApp(app)}
+                                className="px-3 py-1.5 rounded-xl bg-rose-100 hover:bg-rose-200 text-rose-900 font-semibold text-xs flex items-center gap-1 transition-colors"
+                                title="Adicionar ao calendário"
+                              >
+                                <CalendarCheck className="w-3.5 h-3.5 text-rose-800" />
+                                <span>{addedToCalendarIds.has(app.id) ? 'No calendário' : 'Adicionar ao calendário'}</span>
+                              </button>
+                            )}
+
                             <button
                               onClick={() => openClientWhatsapp(app)}
                               className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs flex items-center gap-1"
@@ -1382,6 +1439,32 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose, onRefreshPublic
                       />
                     </div>
 
+                    {/* Email Notifications Settings Section */}
+                    <div className="sm:col-span-2 space-y-2 pt-4 border-t border-rose-100">
+                      <div className="flex items-center gap-2">
+                        <Mail className="w-4 h-4 text-rose-900" />
+                        <h4 className="font-serif font-bold text-rose-950 text-sm">
+                          Configurações de Notificações por E-mail
+                        </h4>
+                      </div>
+                      <p className="text-xs text-rose-800">
+                        Defina o endereço de e-mail do administrador que receberá alertas automáticos sempre que uma cliente realizar um novo agendamento no site.
+                      </p>
+
+                      <div>
+                        <label className="block font-bold text-rose-950 mb-1">
+                          E-mail para receber notificações de novos agendamentos:
+                        </label>
+                        <input
+                          type="email"
+                          placeholder="camilalima@studio.com"
+                          value={profile.notificationEmail || ''}
+                          onChange={(e) => setProfile({ ...profile, notificationEmail: e.target.value })}
+                          className="w-full p-2.5 rounded-xl border border-rose-200 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-rose-300"
+                        />
+                      </div>
+                    </div>
+
                     <div className="sm:col-span-2 space-y-3 pt-4 border-t border-rose-100">
                       <h4 className="font-serif font-bold text-rose-950 text-sm">
                         Identidade Visual & Logo do Site
@@ -1456,6 +1539,49 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose, onRefreshPublic
                           onChange={(e) => setPolicies({ ...policies, delayToleranceInfo: e.target.value })}
                           className="w-full p-2.5 rounded-xl border border-rose-200"
                         />
+                      </div>
+                    </div>
+
+                    {/* Email Provider Configuration */}
+                    <div className="sm:col-span-2 space-y-3 pt-4 border-t border-rose-100">
+                      <h4 className="font-serif font-bold text-rose-950 text-sm flex items-center gap-2">
+                        <Mail className="w-4 h-4 text-rose-700" />
+                        <span>Configurações de E-mail</span>
+                      </h4>
+                      <p className="text-xs text-rose-700">
+                        Escolha o sistema responsável pelo envio dos e-mails de notificação de novos agendamentos:
+                      </p>
+
+                      <div className="space-y-2 bg-rose-50/70 p-4 rounded-2xl border border-rose-100">
+                        <label className="block text-xs font-bold text-rose-900 mb-2">Método de envio</label>
+                        <div className="flex flex-col sm:flex-row gap-4">
+                          <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-rose-950 bg-white px-3.5 py-2 rounded-xl border border-rose-200 hover:border-rose-300">
+                            <input
+                              type="radio"
+                              name="emailProvider"
+                              value="emailjs"
+                              checked={emailProvider === 'emailjs'}
+                              onChange={() => setEmailProvider('emailjs')}
+                              className="w-4 h-4 text-rose-900 border-rose-300 focus:ring-rose-900 accent-rose-900 cursor-pointer"
+                            />
+                            <span>( ) EmailJS</span>
+                          </label>
+
+                          <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-rose-950 bg-white px-3.5 py-2 rounded-xl border border-rose-200 hover:border-rose-300">
+                            <input
+                              type="radio"
+                              name="emailProvider"
+                              value="resend"
+                              checked={emailProvider === 'resend'}
+                              onChange={() => setEmailProvider('resend')}
+                              className="w-4 h-4 text-rose-900 border-rose-300 focus:ring-rose-900 accent-rose-900 cursor-pointer"
+                            />
+                            <span>( ) Resend</span>
+                          </label>
+                        </div>
+                        <p className="text-[11px] text-rose-600 mt-2 font-medium">
+                          Provedor ativo no momento: <strong className="text-rose-950 uppercase">{emailProvider}</strong>
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -1812,9 +1938,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose, onRefreshPublic
             </p>
 
             <div className="bg-rose-50 p-3 rounded-xl border border-rose-100 text-xs text-rose-900 whitespace-pre-wrap font-sans leading-relaxed">
-              {notifyModal.type === 'cancelled'
-                ? `Olá, ${notifyModal.app.clientName}. Tudo bem?\n\nPrecisamos informar que seu agendamento no Studio Camila Lima foi cancelado.\n\nProcedimento: ${notifyModal.app.serviceTitle}\nData: ${formatDateBR(notifyModal.app.date)}\nHorário: ${notifyModal.app.time}\n\nPedimos desculpas pelo inconveniente.\n\nCaso queira realizar um novo agendamento, entre em contato conosco pelo WhatsApp.\n\nStudio Camila Lima 💅`
-                : `Olá, ${notifyModal.app.clientName}. Tudo bem?\n\nInfelizmente, não conseguimos confirmar o horário solicitado para:\n\nProcedimento: ${notifyModal.app.serviceTitle}\nData: ${formatDateBR(notifyModal.app.date)}\nHorário: ${notifyModal.app.time}\n\nPedimos desculpas pelo inconveniente.\n\nCaso queira, você pode realizar um novo agendamento escolhendo outro horário disponível.\n\nStudio Camila Lima 💅`}
+              {getDeniedWhatsappMessage(notifyModal.app)}
             </div>
 
             <div className="flex flex-col sm:flex-row items-center gap-2 pt-2">
@@ -1828,11 +1952,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose, onRefreshPublic
               <button
                 type="button"
                 onClick={() => {
-                  const text = notifyModal.type === 'cancelled'
-                    ? `Olá, ${notifyModal.app!.clientName}. Tudo bem?\n\nPrecisamos informar que seu agendamento no Studio Camila Lima foi cancelado.\n\nProcedimento: ${notifyModal.app!.serviceTitle}\nData: ${formatDateBR(notifyModal.app!.date)}\nHorário: ${notifyModal.app!.time}\n\nPedimos desculpas pelo inconveniente.\n\nCaso queira realizar um novo agendamento, entre em contato conosco pelo WhatsApp.\n\nStudio Camila Lima 💅`
-                    : `Olá, ${notifyModal.app!.clientName}. Tudo bem?\n\nInfelizmente, não conseguimos confirmar o horário solicitado para:\n\nProcedimento: ${notifyModal.app!.serviceTitle}\nData: ${formatDateBR(notifyModal.app!.date)}\nHorário: ${notifyModal.app!.time}\n\nPedimos desculpas pelo inconveniente.\n\nCaso queira, você pode realizar um novo agendamento escolhendo outro horário disponível.\n\nStudio Camila Lima 💅`;
-                  
-                  openClientWhatsapp(notifyModal.app!, text);
+                  openClientWhatsapp(notifyModal.app!, getDeniedWhatsappMessage(notifyModal.app!));
                   setNotifyModal({ isOpen: false, type: 'cancelled', app: null });
                 }}
                 className="w-full sm:w-1/2 py-2.5 rounded-full bg-[#25D366] text-white text-xs font-bold hover:bg-emerald-600 flex items-center justify-center gap-1.5 shadow-sm"
@@ -1902,6 +2022,122 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose, onRefreshPublic
                     <span>Excluir</span>
                   </>
                 )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CALENDAR SELECTION MODAL */}
+      {calendarModalApp && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-rose-100 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-rose-100 flex items-center justify-center text-rose-900 shrink-0">
+                  <CalendarCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="font-serif font-bold text-rose-950 text-base">
+                    Adicionar ao Calendário
+                  </h4>
+                  <p className="text-[11px] text-rose-700 font-medium">Escolha a plataforma de sua preferência</p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setCalendarModalApp(null)}
+                className="p-1.5 rounded-xl text-rose-400 hover:text-rose-700 hover:bg-rose-50 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="bg-rose-50/70 p-4 rounded-2xl border border-rose-100 text-xs space-y-1.5 text-rose-950">
+              <p><span className="font-bold">Serviço:</span> {calendarModalApp.serviceTitle}</p>
+              <p><span className="font-bold">Cliente:</span> {calendarModalApp.clientName}</p>
+              <p><span className="font-bold">Data:</span> {formatDateBR(calendarModalApp.date)}</p>
+              <p><span className="font-bold">Horário:</span> {calendarModalApp.time} às {calendarModalApp.endTime} ({calendarModalApp.durationMinutes} min)</p>
+              {calendarModalApp.notes && <p><span className="font-bold">Observações:</span> {calendarModalApp.notes}</p>}
+            </div>
+
+            <div className="space-y-2.5 pt-1">
+              {/* Option 1: Apple Calendar */}
+              <button
+                type="button"
+                onClick={() => {
+                  downloadICSFile(calendarModalApp, profile);
+                  setAddedToCalendarIds(prev => new Set(prev).add(calendarModalApp.id));
+                  setCalendarModalApp(null);
+                }}
+                className="w-full py-3 px-4 rounded-2xl border border-rose-200 hover:border-rose-400 bg-white hover:bg-rose-50/50 flex items-center justify-between transition-colors shadow-2xs group cursor-pointer"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-slate-900 text-white flex items-center justify-center font-bold text-xs">
+                    
+                  </div>
+                  <div className="text-left">
+                    <span className="font-bold text-rose-950 text-xs block">Apple Calendar</span>
+                    <span className="text-[10px] text-rose-600 block">Abrir / importar no aplicativo Calendário da Apple</span>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-rose-400 group-hover:translate-x-0.5 transition-transform" />
+              </button>
+
+              {/* Option 2: Google Calendar */}
+              <button
+                type="button"
+                onClick={() => {
+                  const url = getGoogleCalendarUrl(calendarModalApp);
+                  window.open(url, '_blank');
+                  setAddedToCalendarIds(prev => new Set(prev).add(calendarModalApp.id));
+                  setCalendarModalApp(null);
+                }}
+                className="w-full py-3 px-4 rounded-2xl border border-rose-200 hover:border-rose-400 bg-white hover:bg-rose-50/50 flex items-center justify-between transition-colors shadow-2xs group cursor-pointer"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold text-xs">
+                    G
+                  </div>
+                  <div className="text-left">
+                    <span className="font-bold text-rose-950 text-xs block">Google Calendar</span>
+                    <span className="text-[10px] text-rose-600 block">Criar evento diretamente no Google Agenda Web</span>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-rose-400 group-hover:translate-x-0.5 transition-transform" />
+              </button>
+
+              {/* Option 3: Download .ics File */}
+              <button
+                type="button"
+                onClick={() => {
+                  downloadICSFile(calendarModalApp, profile);
+                  setAddedToCalendarIds(prev => new Set(prev).add(calendarModalApp.id));
+                  setCalendarModalApp(null);
+                }}
+                className="w-full py-3 px-4 rounded-2xl border border-rose-200 hover:border-rose-400 bg-white hover:bg-rose-50/50 flex items-center justify-between transition-colors shadow-2xs group cursor-pointer"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-rose-900 text-white flex items-center justify-center">
+                    <Download className="w-4 h-4" />
+                  </div>
+                  <div className="text-left">
+                    <span className="font-bold text-rose-950 text-xs block">Baixar arquivo .ics</span>
+                    <span className="text-[10px] text-rose-600 block">Arquivo iCalendar para Outlook e outros calendários</span>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-rose-400 group-hover:translate-x-0.5 transition-transform" />
+              </button>
+            </div>
+
+            <div className="mt-4 pt-3 border-t border-rose-100 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setCalendarModalApp(null)}
+                className="px-4 py-2 rounded-xl bg-rose-100 hover:bg-rose-200 text-rose-900 text-xs font-semibold cursor-pointer transition-colors"
+              >
+                Fechar
               </button>
             </div>
           </div>
