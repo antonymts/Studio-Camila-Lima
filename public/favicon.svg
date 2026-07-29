@@ -1,26 +1,52 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs>
-    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#E8D1B5" />
-      <stop offset="50%" stop-color="#C2A482" />
-      <stop offset="100%" stop-color="#9A7B56" />
+    <!-- Instagram style multi-stop vibrant ring gradient -->
+    <linearGradient id="instaGradient" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#FFB800" />
+      <stop offset="25%" stop-color="#FF4E00" />
+      <stop offset="60%" stop-color="#E80075" />
+      <stop offset="85%" stop-color="#BD00C4" />
+      <stop offset="100%" stop-color="#8000D7" />
     </linearGradient>
+
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Alex+Brush&amp;family=Playfair+Display:ital,wght@0,600;1,400&amp;family=Montserrat:wght@600&amp;display=swap');
+      .pink-c {
+        font-family: 'Playfair Display', Didot, 'Times New Roman', serif;
+        font-size: 340px;
+        font-weight: 600;
+        fill: #F3A4A9;
+      }
+      .signature {
+        font-family: 'Alex Brush', 'Great Vibes', 'Brush Script MT', cursive;
+        font-size: 110px;
+        fill: #141414;
+      }
+      .subtext {
+        font-family: 'Montserrat', 'Helvetica Neue', Arial, sans-serif;
+        font-size: 22px;
+        font-weight: 600;
+        letter-spacing: 9px;
+        fill: #3E3E3E;
+      }
+    </style>
   </defs>
-  <!-- Background -->
-  <rect width="512" height="512" rx="128" fill="#1A1A1A" />
-  <!-- Border Rings -->
-  <circle cx="256" cy="256" r="220" fill="none" stroke="url(#goldGrad)" stroke-width="8" opacity="0.9" />
-  <circle cx="256" cy="256" r="208" fill="none" stroke="url(#goldGrad)" stroke-width="2" opacity="0.4" />
-  
-  <!-- Monogram CL -->
-  <g fill="url(#goldGrad)" text-anchor="middle" font-family="Georgia, 'Playfair Display', Didot, serif">
-    <text x="256" y="295" font-size="210" font-weight="600" letter-spacing="-8">CL</text>
-  </g>
-  
-  <!-- Sparkle Star Top -->
-  <path d="M256 72 L262 98 L288 104 L262 110 L256 136 L250 110 L224 104 L250 98 Z" fill="url(#goldGrad)" />
-  
-  <!-- Subtext -->
-  <text x="256" y="380" fill="url(#goldGrad)" font-family="system-ui, -apple-system, sans-serif" font-size="28" font-weight="700" letter-spacing="12" text-anchor="middle">STUDIO</text>
-  <text x="256" y="415" fill="#FAF8F5" font-family="system-ui, -apple-system, sans-serif" font-size="20" font-weight="400" letter-spacing="8" text-anchor="middle" opacity="0.85">CAMILA LIMA</text>
+
+  <!-- Container dark background -->
+  <rect width="512" height="512" rx="115" fill="#0F0F12" />
+
+  <!-- Outer Gradient Ring -->
+  <circle cx="256" cy="256" r="230" fill="none" stroke="url(#instaGradient)" stroke-width="18" />
+
+  <!-- Inner White Circle -->
+  <circle cx="256" cy="256" r="212" fill="#FFFFFF" />
+
+  <!-- Large Soft Pink Serif C -->
+  <text x="252" y="362" text-anchor="middle" class="pink-c">C</text>
+
+  <!-- Cursive Signature Camila Lima -->
+  <text x="256" y="264" text-anchor="middle" class="signature">Camila Lima</text>
+
+  <!-- Subtitle NAIL DESIGNER -->
+  <text x="260" y="382" text-anchor="middle" class="subtext">NAIL DESIGNER</text>
 </svg>
